@@ -4,6 +4,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.empty import EmptyOperator
 from airflow.operators.bash import BashOperator
+from airflow.utils.trigger_rule import TriggerRule
 from src.postgres.load import load_data_in_postgres
 
 
@@ -136,12 +137,20 @@ with DAG(
     # )
 
     # ========== 6) Indexing Elasticsearch ==========
+    # t_index_elastic = BashOperator(
+    #     task_id="index_to_elasticsearch",
+    #     bash_command=(
+    #         f"cd {PROJECT_ROOT} && "
+    #         f"{PYTHON} -m src.indexing.elk_indexing"
+    #     ),
+    # )
     t_index_elastic = BashOperator(
         task_id="index_to_elasticsearch",
         bash_command=(
             f"cd {PROJECT_ROOT} && "
-            f"{PYTHON} -m src.indexing.elk_indexing"
+            f"{PYTHON} -m src.indexing.postgres_to_elk"
         ),
+        trigger_rule = TriggerRule.ALL_DONE,
     )
 
     end = EmptyOperator(task_id="end")
@@ -160,5 +169,5 @@ with DAG(
     [t_format_binance, t_format_yahoo] >> t_combine
     
     # Suite séquentielle
-    t_combine >> t_export_pg >> t_index_elastic >> end
+    t_combine >> t_export_pg >> t_dbt_run >> t_index_elastic >> end
     # t_combine >> t_export_pg >> t_dbt_run >> t_index_elastic >> end
